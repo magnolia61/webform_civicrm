@@ -60,6 +60,8 @@ final class ContactDedupeLockedFieldsTest extends WebformCivicrmTestBase {
       'webform' => $this->webform->id(),
     ]));
     $this->enableCivicrmOnWebform();
+    $this->getSession()->getPage()->checkField('civicrm_1_contact_1_contact_middle_name');
+    $this->assertSession()->checkboxChecked('civicrm_1_contact_1_contact_middle_name');
     $this->getSession()->getPage()->selectFieldOption('contact_1_number_of_email', 1);
     $this->assertSession()->assertWaitOnAjaxRequest();
     $this->assertSession()->checkboxChecked('civicrm_1_contact_1_email_email');
@@ -85,6 +87,7 @@ final class ContactDedupeLockedFieldsTest extends WebformCivicrmTestBase {
     $this->assertPageNoErrorMessages();
     $this->assertSession()->waitForField('First Name');
     $this->getSession()->getPage()->fillField('First Name', 'Frederick');
+    $this->getSession()->getPage()->fillField('Middle Name', 'Someone');
     $this->getSession()->getPage()->fillField('Last Name', 'Someone-Else');
     $this->getSession()->getPage()->fillField('Email', 'frederick@pabst.io');
     $this->pressButtonOverride('Submit');
@@ -94,6 +97,9 @@ final class ContactDedupeLockedFieldsTest extends WebformCivicrmTestBase {
     $contact = $this->utils->wf_civicrm_api('Contact', 'getsingle', ['id' => $cid]);
     $this->assertEquals('Frederick', $contact['first_name']);
     $this->assertEquals('Pabst', $contact['last_name'], 'The locked last name of the matched contact was overwritten.');
+    // The name counts as one group: the contact already has a name, so the
+    // empty middle name is not filled with someone else's input either.
+    $this->assertEmpty($contact['middle_name'] ?? '', 'The empty middle name of a named contact was filled in.');
     $this->assertEquals(1, $this->utils->wf_civicrm_api('Contact', 'getcount', ['email' => 'frederick@pabst.io']));
 
     // A visitor that matches nobody still creates a contact with a name.
