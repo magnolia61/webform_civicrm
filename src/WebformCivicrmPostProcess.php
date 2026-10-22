@@ -670,9 +670,12 @@ class WebformCivicrmPostProcess extends WebformCivicrmBase implements WebformCiv
    * now that the matching rule has identified the contact.
    *
    * With "Fields to Lock" plus "Don't lock fields that are empty" a value is
-   * only saved when the contact has none yet. A location row (email, phone,
-   * address, ...) is dropped as a whole so no partial row is saved over the
-   * existing one.
+   * only saved when the contact has none yet. First, middle and last name,
+   * prefix and suffix count as one group: once one of them is locked, none of
+   * them is saved, so a blank middle name cannot be filled with someone
+   * else's input. A location row
+   * (email, phone, address, ...) is dropped as a whole so no partial row is
+   * saved over the existing one.
    *
    * @param int $c
    * @param array $contact
@@ -680,6 +683,8 @@ class WebformCivicrmPostProcess extends WebformCivicrmBase implements WebformCiv
    * @return array
    */
   private function removeFieldsHiddenAfterMatch($c, array $contact) {
+    $nameGroup = ['first_name', 'middle_name', 'last_name', 'prefix_id', 'suffix_id'];
+    $hideName = FALSE;
     foreach ($contact as $table => $rows) {
       if (!is_array($rows)) {
         continue;
@@ -695,6 +700,7 @@ class WebformCivicrmPostProcess extends WebformCivicrmBase implements WebformCiv
           if ($this->isFieldHiddenByExistingContactSettings('contact', $c, $table, $n, $name)) {
             if ($table === 'contact') {
               unset($contact[$table][$n][$name]);
+              $hideName = $hideName || in_array($name, $nameGroup);
             }
             else {
               unset($contact[$table][$n]);
@@ -702,6 +708,11 @@ class WebformCivicrmPostProcess extends WebformCivicrmBase implements WebformCiv
             }
           }
         }
+      }
+    }
+    if ($hideName) {
+      foreach ($nameGroup as $name) {
+        unset($contact['contact'][1][$name]);
       }
     }
     return $contact;
