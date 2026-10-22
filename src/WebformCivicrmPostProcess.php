@@ -215,6 +215,12 @@ class WebformCivicrmPostProcess extends WebformCivicrmBase implements WebformCiv
           continue;
         }
         $this->ent['contact'][$c]['id'] = $this->findDuplicateContact($contact);
+        // "Fields to Lock" was evaluated before the matching rule ran, so the
+        // locked values of a matched contact could be overwritten by an
+        // anonymous submitter. Evaluate it again now the contact is known.
+        if (!empty($this->ent['contact'][$c]['id'])) {
+          $contact = $this->data['contact'][$c] = $this->removeFieldsHiddenAfterMatch($c, $contact);
+        }
       }
 
       // Current employer must wait for ContactRef ids to be filled
@@ -657,6 +663,48 @@ class WebformCivicrmPostProcess extends WebformCivicrmBase implements WebformCiv
       }
     }
     return TRUE;
+  }
+
+  /**
+   * Drop submitted values that are locked on the existing contact element,
+   * now that the matching rule has identified the contact.
+   *
+   * With "Fields to Lock" plus "Don't lock fields that are empty" a value is
+   * only saved when the contact has none yet. A location row (email, phone,
+   * address, ...) is dropped as a whole so no partial row is saved over the
+   * existing one.
+   *
+   * @param int $c
+   * @param array $contact
+   *
+   * @return array
+   */
+  private function removeFieldsHiddenAfterMatch($c, array $contact) {
+    foreach ($contact as $table => $rows) {
+      if (!is_array($rows)) {
+        continue;
+      }
+      foreach ($rows as $n => $fields) {
+        if (!is_array($fields)) {
+          continue;
+        }
+        foreach (array_keys($fields) as $name) {
+          if ($table === 'contact' && in_array($name, ['contact_type', 'contact_sub_type', 'webform_label'])) {
+            continue;
+          }
+          if ($this->isFieldHiddenByExistingContactSettings('contact', $c, $table, $n, $name)) {
+            if ($table === 'contact') {
+              unset($contact[$table][$n][$name]);
+            }
+            else {
+              unset($contact[$table][$n]);
+              break;
+            }
+          }
+        }
+      }
+    }
+    return $contact;
   }
 
   /**
